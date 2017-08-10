@@ -1,8 +1,10 @@
 extern crate inkwell;
 
 use std::ffi::CString;
+use std::mem::transmute;
 
 use self::inkwell::context::Context;
+use self::inkwell::targets::{InitializationConfig, Target};
 use self::inkwell::types::{FloatType, IntType, StructType, VoidType};
 
 #[test]
@@ -205,6 +207,78 @@ fn test_sized_types() {
     assert!(struct_type2.vec_type(42).is_sized());
     assert!(struct_type3.vec_type(42).is_sized());
     assert!(struct_type4.vec_type(42).is_sized());
+
+    let context = Context::get_global_context();
+    let builder = context.create_builder();
+    let module = context.create_module("sized");
+
+    Target::initialize_native(&InitializationConfig::default()).expect("Failed to initialize native target");
+
+    let execution_engine = module.create_execution_engine(true).unwrap();
+
+    macro_rules! assert_size_eq {
+        ($input:tt: $ty:ident($ty2:ident) == $size:expr) => {
+            let fn_type = i64_type.fn_type(&[&$ty], false);
+            let fn_value = module.add_function(concat!("get_", stringify!($ty)), &fn_type, None);
+
+            let entry = fn_value.append_basic_block("entry");
+
+            builder.position_at_end(&entry);
+
+            let param = fn_value.get_first_param().unwrap().into_int_value();
+
+            param.set_name("to_size");
+
+            builder.build_return(Some(&param.get_type().size()));
+
+            module.print_to_stderr();
+
+            println!("{:?}", concat!("get_", stringify!($ty)));
+
+            let addr = execution_engine.get_function_address(concat!("get_", stringify!($ty))).unwrap();
+
+            let get_size: extern "C" fn($ty2) -> i64 = unsafe { transmute(addr) };
+
+            assert_eq!(get_size($input), $size);
+        }
+    }
+
+    assert_size_eq!(true: bool_type(bool) == 1);
+    assert_size_eq!(false: bool_type(bool) == 1);
+    assert_size_eq!(3: i8_type(i8) == 8);
+    assert_size_eq!(3: i8_type(u8) == 8);
+
+
+
+
+    // let bool_get_size_type = i64_type.fn_type(&[&bool_type], false);
+    // let bool_get_size = module.add_function("bool_get_size", &bool_get_size_type, None);
+
+    // let entry = bool_get_size.append_basic_block("entry");
+
+    // builder.position_at_end(&entry);
+
+    // let param = bool_get_size.get_first_param().unwrap().into_int_value();
+
+    // param.set_name("to_size");
+
+    // builder.build_return(Some(&param.get_type().size()));
+
+
+    // let addr = execution_engine.get_function_address("bool_get_size").unwrap();
+
+    // let get_size: extern "C" fn(bool) -> i64 = unsafe { transmute(addr) };
+
+    // assert_eq!(get_size(true), 1);;
+    // assert_eq!(get_size(false), 1);;
+
+    // println!("{:?}", bool_type);
+    // println!("{:?}", bool_type.size());
+    // println!("{:?}", i8_type.size());
+    // println!("{:?}", i16_type.size());
+    // println!("{:?}", i32_type.size());
+    // println!("{:?}", i64_type.size());
+    // println!("{:?}", i128_type.size());
 }
 
 #[test]
