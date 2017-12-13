@@ -1,7 +1,9 @@
 language: rust
 
 sudo: false
-cache: apt
+cache:
+  - apt
+  - cargo
 
 matrix:
   allow_failures:
@@ -27,7 +29,8 @@ matrix:
         - sed -i -e 's/llvm-sys = ".*"/llvm-sys = "36"/' Cargo.toml
       env:
         - NAME="LLVM 3.6"
-      rust: stable
+      script:
+        - cargo test --no-default-features --features "llvm3-6" --verbose
     # LLVM 3.7 Stable
     - addons:
         apt:
@@ -47,7 +50,8 @@ matrix:
         - sed -i -e 's/llvm-sys = ".*"/llvm-sys = "37"/' Cargo.toml
       env:
         - NAME="LLVM 3.7"
-      rust: stable
+      script:
+        - cargo test --no-default-features --features "llvm3-7" --verbose
 
 env:
   global:
